@@ -36,6 +36,7 @@ $(call inherit-product-if-exists, frameworks/base/data/sounds/AudioPackage2.mk)
 $(call inherit-product-if-exists, external/svox/pico/lang/all_pico_languages.mk)
 
 # Get the list of languages.
-$(call inherit-product, $(SRC_TARGET_DIR)/product/languages_full.mk)
+# Build with only english by default to save space. Edit/Add launguage_full.mk and edit the line below to add more.
+$(call inherit-product, $(SRC_TARGET_DIR)/product/languages_en.mk)
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/generic.mk)
