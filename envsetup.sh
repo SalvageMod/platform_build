@@ -443,7 +443,11 @@ function print_lunch_menu()
     echo
     echo "You're building on" $uname
     echo
-    echo "Lunch menu... pick a combo:"
+    if [ "z${LITH_DEVICES_ONLY}" != "z" ]; then
+       echo "Breakfast menu... pick a combo:"
+    else
+       echo "Lunch menu... pick a combo:"
+    fi
 
     local i=1
     local choice
@@ -454,6 +458,25 @@ function print_lunch_menu()
     done
 
     echo
+}
+function brunch()
+{
+    breakfast
+}
+
+
+function breakfast()
+{
+    LITH_DEVICES_ONLY="true"
+    unset LUNCH_MENU_CHOICES
+    add_lunch_combo full-eng
+    for f in `/bin/ls vendor/lithrom/vendorsetup.sh vendor/lithrom/build/vendorsetup.sh 2> /dev/null`
+        do
+            echo "including $f"
+            . $f
+        done
+    unset f
+    lunch
 }
 
 function lunch()
@@ -1092,7 +1115,6 @@ else
 fi
 unset _xarray
 
-# Execute the contents of any vendorsetup.sh files we can find.
 for f in `/bin/ls vendor/*/vendorsetup.sh vendor/*/build/vendorsetup.sh device/*/*/vendorsetup.sh 2> /dev/null`
 do
     echo "including $f"
