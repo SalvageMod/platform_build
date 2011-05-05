@@ -443,7 +443,7 @@ function print_lunch_menu()
     echo
     echo "You're building on" $uname
     echo
-    if [ "z${LITH_DEVICES_ONLY}" != "z" ]; then
+    if [ "z${SALV_DEVICES_ONLY}" != "z" ]; then
        echo "Breakfast menu... pick a combo:"
     else
        echo "Lunch menu... pick a combo:"
@@ -467,10 +467,10 @@ function brunch()
 
 function breakfast()
 {
-    LITH_DEVICES_ONLY="true"
+    SALV_DEVICES_ONLY="true"
     unset LUNCH_MENU_CHOICES
     add_lunch_combo full-eng
-    for f in `/bin/ls vendor/lithrom/vendorsetup.sh vendor/lithrom/build/vendorsetup.sh 2> /dev/null`
+    for f in `/bin/ls vendor/salvage/vendorsetup.sh vendor/salvage/build/vendorsetup.sh 2> /dev/null`
         do
             echo "including $f"
             . $f
