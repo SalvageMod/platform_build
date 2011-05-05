@@ -148,7 +148,7 @@ endif
 $(shell echo 'VERSIONS_CHECKED := $(VERSION_CHECK_SEQUENCE_NUMBER)' \
         > $(OUT_DIR)/versions_checked.mk)
 $(shell echo 'BUILDING_ON_32BIT := $(BUILDING_ON_32BIT)' \
-	>> $(OUT_DIR)/versions_checked.mk)
+        >> $(OUT_DIR)/versions_checked.mk)
 endif
 
 # These are the modifier targets that don't do anything themselves, but
@@ -192,8 +192,13 @@ endif
 ###
 
 is_sdk_build :=
-
-ifneq ($(filter sdk win_sdk sdk_addon,$(MAKECMDGOALS)),)
+ifneq ($(filter sdk,$(MAKECMDGOALS)),)
+is_sdk_build := true
+endif
+ifneq ($(filter win_sdk,$(MAKECMDGOALS)),)
+is_sdk_build := true
+endif
+ifneq ($(filter sdk_addon,$(MAKECMDGOALS)),)
 is_sdk_build := true
 endif
 
@@ -204,7 +209,7 @@ user_variant := $(filter userdebug user,$(TARGET_BUILD_VARIANT))
 enable_target_debugging := true
 ifneq (,$(user_variant))
   # Target is secure in user builds.
-  ADDITIONAL_DEFAULT_PROPERTIES += ro.secure=1
+  ADDITIONAL_DEFAULT_PROPERTIES += ro.secure=0
 
   tags_to_install := user
   ifeq ($(user_variant),userdebug)
@@ -268,11 +273,6 @@ endif
 ## sdk ##
 
 ifdef is_sdk_build
-
-# Detect if we want to build a repository for the SDK
-sdk_repo_goal := $(strip $(filter sdk_repo,$(MAKECMDGOALS)))
-MAKECMDGOALS := $(strip $(filter-out sdk_repo,$(MAKECMDGOALS)))
-
 ifneq ($(words $(filter-out $(INTERNAL_MODIFIER_TARGETS),$(MAKECMDGOALS))),1)
 $(error The 'sdk' target may not be specified with any other targets)
 endif
@@ -764,24 +764,29 @@ docs: $(ALL_DOCS)
 .PHONY: sdk
 ALL_SDK_TARGETS := $(INTERNAL_SDK_TARGET)
 sdk: $(ALL_SDK_TARGETS)
-ifneq ($(filter sdk win_sdk,$(MAKECMDGOALS)),)
-$(call dist-for-goals,sdk win_sdk, \
+$(call dist-for-goals,sdk, \
 	$(ALL_SDK_TARGETS) \
 	$(SYMBOLS_ZIP) \
-	$(INSTALLED_BUILD_PROP_TARGET) \
  )
-endif
 
 .PHONY: findbugs
 findbugs: $(INTERNAL_FINDBUGS_HTML_TARGET) $(INTERNAL_FINDBUGS_XML_TARGET)
 
 .PHONY: clean
+dirs_to_clean := \
+	$(PRODUCT_OUT) \
+	$(TARGET_COMMON_OUT_ROOT)
 clean:
-	@rm -rf $(OUT_DIR)
-	@echo "Entire build directory removed."
+	@for dir in $(dirs_to_clean) ; do \
+	    echo "Cleaning $$dir..."; \
+	    rm -rf $$dir; \
+	done
+	@echo "Clean."; \
 
 .PHONY: clobber
-clobber: clean
+clobber:
+	@rm -rf $(OUT_DIR)
+	@echo "Entire build directory removed."
 
 # The rules for dataclean and installclean are defined in cleanbuild.mk.
 

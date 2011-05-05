@@ -25,6 +25,7 @@
 # core system libraries
 libdl.so                0xAFF00000 # [<64K]
 libc.so                 0xAFD00000 # [~2M]
+libc-ext.so            0xAFC80000 # [<64K]
 libstdc++.so            0xAFC00000 # [<64K]
 libm.so                 0xAFB00000 # [~1M]
 liblog.so               0xAFA00000 # [<64K]

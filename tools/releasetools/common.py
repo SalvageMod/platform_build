@@ -18,7 +18,6 @@ import getopt
 import getpass
 import imp
 import os
-import platform
 import re
 import sha
 import shutil
@@ -56,22 +55,6 @@ def Run(args, **kwargs):
   if OPTIONS.verbose:
     print "  running: ", " ".join(args)
   return subprocess.Popen(args, **kwargs)
-
-
-def CloseInheritedPipes():
-  """ Gmake in MAC OS has file descriptor (PIPE) leak. We close those fds
-  before doing other work."""
-  if platform.system() != "Darwin":
-    return
-  for d in range(3, 1025):
-    try:
-      stat = os.fstat(d)
-      if stat is not None:
-        pipebit = stat[0] & 0x1000
-        if pipebit != 0:
-          os.close(d)
-    except OSError:
-      pass
 
 
 def LoadInfoDict(zip):
@@ -138,6 +121,10 @@ def LoadInfoDict(zip):
   makeint("boot_size")
 
   d["fstab"] = LoadRecoveryFSTab(zip)
+  if not d["fstab"]:
+    if "fs_type" not in d: d["fs_type"] = "yaffs2"
+    if "partition_type" not in d: d["partition_type"] = "MTD"
+
   return d
 
 def LoadRecoveryFSTab(zip):
@@ -147,21 +134,26 @@ def LoadRecoveryFSTab(zip):
   try:
     data = zip.read("RECOVERY/RAMDISK/etc/recovery.fstab")
   except KeyError:
-    raise ValueError("Could not find RECOVERY/RAMDISK/etc/recovery.fstab")
+    # older target-files that doesn't have a recovery.fstab; fall back
+    # to the fs_type and partition_type keys.
+    return
 
   d = {}
   for line in data.split("\n"):
     line = line.strip()
     if not line or line.startswith("#"): continue
     pieces = line.split()
-    if not (3 <= len(pieces) <= 4):
+    if not (3 <= len(pieces) <= 5):
       raise ValueError("malformed recovery.fstab line: \"%s\"" % (line,))
 
     p = Partition()
     p.mount_point = pieces[0]
-    p.fs_type = pieces[1]
+    if len(pieces) >= 5:
+      p.fs_type = pieces[4]
+    else:
+      p.fs_type = pieces[1]
     p.device = pieces[2]
-    if len(pieces) == 4:
+    if len(pieces) >= 4 and pieces[3] != 'NULL':
       p.device2 = pieces[3]
     else:
       p.device2 = None
@@ -361,6 +353,9 @@ def CheckSize(data, target, info_dict):
     p = info_dict["fstab"][mount_point]
     fs_type = p.fs_type
     limit = info_dict.get(p.device + "_size", None)
+  else:
+    fs_type = info_dict.get("fs_type", None)
+    limit = info_dict.get(target + "_size", None)
   if not fs_type or not limit: return
 
   if fs_type == "yaffs2":
@@ -778,11 +773,17 @@ def ComputeDifferences(diffs):
 
 # map recovery.fstab's fs_types to mount/format "partition types"
 PARTITION_TYPES = { "yaffs2": "MTD", "mtd": "MTD",
-                    "ext4": "EMMC", "emmc": "EMMC" }
+                    "ext4": "EMMC", "ext3": "EMMC",
+                    "vfat": "EMMC", "emmc": "EMMC" }
 
 def GetTypeAndDevice(mount_point, info):
   fstab = info["fstab"]
   if fstab:
     return PARTITION_TYPES[fstab[mount_point].fs_type], fstab[mount_point].device
   else:
-    return None
+    devices = {"/boot": "boot",
+               "/recovery": "recovery",
+               "/radio": "radio",
+               "/data": "userdata",
+               "/cache": "cache"}
+    return info["partition_type"], info.get("partition_path", "") + devices[mount_point]

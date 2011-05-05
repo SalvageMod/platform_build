@@ -9,6 +9,10 @@ Invoke ". build/envsetup.sh" from your shell to add the following functions to y
 - jgrep:   Greps on all local Java files.
 - resgrep: Greps on all local res/*.xml files.
 - godir:   Go to the directory containing a file.
+- cmremote: Add git remote for CM Gerrit Review
+- cmgerrit: Send patch request request to CyanogenMod repos
+- mka:     Builds using SCHED_BATCH on all processors
+- reposync: Parallel repo sync using ionice and SCHED_BATCH
 
 Look at the source to view more functions. The complete list is:
 EOF
@@ -311,7 +315,7 @@ function chooseproduct()
         if [ "$TARGET_SIMULATOR" = true ] ; then
             default_value=sim
         else
-            default_value=generic
+            default_value=full
         fi
     fi
 
@@ -429,7 +433,7 @@ function add_lunch_combo()
 }
 
 # add the default one here
-add_lunch_combo generic-eng
+add_lunch_combo full-eng
 
 # if we're on linux, add the simulator.  There is a special case
 # in lunch to deal with the simulator
@@ -442,8 +446,11 @@ function print_lunch_menu()
     local uname=$(uname)
     echo
     echo "You're building on" $uname
+    if [ "$(uname)" = "Darwin" ] ; then
+    	echo "  (ohai, koush!)"
+    fi
     echo
-    if [ "z${SALV_DEVICES_ONLY}" != "z" ]; then
+    if [ "z${CM_DEVICES_ONLY}" != "z" ]; then
        echo "Breakfast menu... pick a combo:"
     else
        echo "Lunch menu... pick a combo:"
@@ -457,27 +464,55 @@ function print_lunch_menu()
         i=$(($i+1))
     done
 
+    if [ "z${CM_DEVICES_ONLY}" != "z" ]; then
+       echo "... and don't forget the bacon!"
+    fi
+
     echo
 }
+
 function brunch()
 {
-    breakfast
+    breakfast $*
+    if [ $? -eq 0 ]; then
+        mka bacon
+    else
+        echo "No such item in brunch menu. Try 'breakfast'"
+        return 1
+    fi
+    return $?
 }
-
 
 function breakfast()
 {
-    SALV_DEVICES_ONLY="true"
+    target=$1
+    CM_DEVICES_ONLY="true"
     unset LUNCH_MENU_CHOICES
     add_lunch_combo full-eng
-    for f in `/bin/ls vendor/salvage/vendorsetup.sh vendor/salvage/build/vendorsetup.sh 2> /dev/null`
+    for f in `/bin/ls vendor/cyanogen/vendorsetup.sh vendor/cyanogen/build/vendorsetup.sh 2> /dev/null`
         do
             echo "including $f"
             . $f
         done
     unset f
-    lunch
+
+    if [ $# -eq 0 ]; then
+        # No arguments, so let's have the full menu
+        lunch
+    else
+        echo "z$target" | grep -q "-"
+        if [ $? -eq 0 ]; then
+            # A buildtype was specified, assume a full device name
+            lunch $target
+        else
+            # This is probably just the CM model name
+            lunch cyanogen_$target-eng
+        fi
+    fi
+    return $?
 }
+
+alias bib=breakfast
 
 function lunch()
 {
@@ -487,7 +522,7 @@ function lunch()
         answer=$1
     else
         print_lunch_menu
-        echo -n "Which would you like? [generic-eng] "
+        echo -n "Which would you like? [full-eng] "
         read answer
     fi
 
@@ -495,7 +530,7 @@ function lunch()
 
     if [ -z "$answer" ]
     then
-        selection=generic-eng
+        selection=full-eng
     elif [ "$answer" = "simulator" ]
     then
         selection=simulator
@@ -583,7 +618,7 @@ function tapas()
         apps=all
     fi
 
-    export TARGET_PRODUCT=generic
+    export TARGET_PRODUCT=full
     export TARGET_BUILD_VARIANT=$variant
     export TARGET_SIMULATOR=false
     export TARGET_BUILD_TYPE=release
@@ -722,6 +757,17 @@ function croot()
         cd $(gettop)
     else
         echo "Couldn't locate the top of the tree.  Try setting TOP."
+    fi
+}
+
+function cout()
+{
+    croot
+    setpaths
+    if [ "$ANDROID_PRODUCT_OUT" ]; then
+        cd $ANDROID_PRODUCT_OUT
+    else
+        echo "Couldn't locate ANDROID_PRODUCT_OUT."
     fi
 }
 
@@ -1059,7 +1105,7 @@ function godir () {
         echo ""
     fi
     local lines
-    lines=($(grep "$1" $T/filelist | sed -e 's/\/[^/]*$//' | sort | uniq)) 
+    lines=($(grep "$1" $T/filelist | sed -e 's/\/[^/]*$//' | sort | uniq))
     if [[ ${#lines[@]} = 0 ]]; then
         echo "Not found"
         return
@@ -1072,7 +1118,7 @@ function godir () {
             local line
             for line in ${lines[@]}; do
                 printf "%6s %s\n" "[$index]" $line
-                index=$(($index + 1)) 
+                index=$(($index + 1))
             done
             echo
             echo -n "Select one: "
@@ -1089,6 +1135,89 @@ function godir () {
         pathname=${lines[0]}
     fi
     cd $T/$pathname
+}
+
+function cmremote()
+{
+    git remote rm cmremote 2> /dev/null
+    if [ ! -d .git ]
+    then
+        echo .git directory not found. Please run this from the root directory of the Android repository you wish to set up.
+    fi
+    GERRIT_REMOTE=$(cat .git/config  | grep git://github.com | awk '{ print $3 }' | sed s#git://github.com/##g)
+    if [ -z "$GERRIT_REMOTE" ]
+    then
+        echo Unable to set up the git remote, are you in the root of the repo?
+        return 0
+    fi
+    CMUSER=`git config --get review.review.cyanogenmod.com.username`
+    if [ -z "$CMUSER" ]
+    then
+        git remote add cmremote ssh://review.cyanogenmod.com:29418/$GERRIT_REMOTE
+    else
+        git remote add cmremote ssh://$CMUSER@review.cyanogenmod.com:29418/$GERRIT_REMOTE
+    fi
+    echo You can now push to "cmremote".
+}
+
+function cmgerrit()
+{
+        ##################################################################################
+        # Gerrit tool for easiness of submitting changes to CM repos                     #
+        # Wes Garner                                                                     #
+        # Usage: cmgerrit <for/changes> <branch/change-id>                               #
+        # Note: for = new submissions, changes = new patch set for current submission    #
+        ##################################################################################
+
+    local mode=$1
+    local target=$2
+
+    repo=$(cat .git/config  | grep git://github.com | awk '{ print $3 }' | sed s#git://github.com/##g)
+    user=`git config --get review.review.cyanogenmod.com.username`
+
+    if [ -z "$repo" ]; then
+        echo "Unable to detect current repo, are you in the root of the repo you would like to submit patches for?"
+        return
+    fi
+
+    if [ -z $mode ] || [ -z $target ]; then
+        echo "CyanogenMod Gerrit Usage: "
+        echo "      Must be in root of repo that patches are being submitted for"
+        echo "      cmgerrit <for/changes> <branch/change-id>"
+        echo ""
+    fi
+    if [ -z $mode ]; then
+        echo -n "Is this a new change or a new patchset to a current change? (for = new, changes = patch set): "
+        read mode
+        if [ -z $mode ]; then
+            echo "I'm sorry you didn't enter a mode, please try again."
+            return
+        fi
+    fi
+    if [ -z $target ]; then
+        echo -n "What is the branch (for a new change) OR change-id (for a current change) you are working with: "
+        read target
+        if [ -z $target ]; then
+            echo "I'm sorry you didn't enter a target, please try again."
+            return
+        fi
+    fi
+    echo "Pushing patch set to $repo, Mode: $mode, Target: $target"
+
+    if [ -z "$user" ]
+    then
+        git push ssh://review.cyanogenmod.com:29418/$repo HEAD:refs/$mode/$target
+    else
+        git push ssh://$user@review.cyanogenmod.com:29418/$repo HEAD:refs/$mode/$target
+    fi
+}
+
+function mka() {
+    schedtool -B -n 1 -e ionice -n 1 make -j `cat /proc/cpuinfo | grep "^processor" | wc -l` "$@"
+}
+
+function reposync() {
+    schedtool -B -n 1 -e ionice -n 1 repo sync -j 10 "$@"
 }
 
 # Force JAVA_HOME to point to java 1.6 if it isn't already set

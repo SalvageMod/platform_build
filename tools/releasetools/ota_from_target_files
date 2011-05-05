@@ -44,6 +44,21 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
   -e  (--extra_script)  <file>
       Insert the contents of file at the end of the update script.
 
+  --backup <boolean>
+      Enable or disable the execution of backuptool.sh.
+      Disabled by default.
+
+  --recovery <boolean>
+      Enable or disable the exclusion of recovery.img or recovery/
+      Disabled by default. Enable in *.mk with TARGET_NO_RECOVERY := true
+
+  --recovery <boolean>
+      Enable or disable the exclusion of recovery.img or recovery/
+      Disabled by default. Enable in *.mk with TARGET_NO_RECOVERY := true
+
+  --override_device <device>
+      Override device-specific asserts. Can be a comma-separated list.
+
 """
 
 import sys
@@ -75,6 +90,9 @@ OPTIONS.wipe_user_data = False
 OPTIONS.omit_prereq = False
 OPTIONS.extra_script = None
 OPTIONS.worker_threads = 3
+OPTIONS.backuptool = False
+OPTIONS.recoveryex = False
+OPTIONS.override_device = 'auto'
 
 def MostPopularKey(d, default):
   """Given a dict, return the key corresponding to the largest
@@ -88,7 +106,7 @@ def MostPopularKey(d, default):
 def IsSymlink(info):
   """Return true if the zipfile.ZipInfo object passed in represents a
   symlink."""
-  return (info.external_attr >> 16) == 0120777
+  return (info.external_attr >> 16) & 0770000 == 0120000
 
 
 class Item:
@@ -287,7 +305,10 @@ def SignOutput(temp_zip_name, output_zip_name):
 
 
 def AppendAssertions(script, input_zip):
-  device = GetBuildProp("ro.product.device", input_zip)
+  if OPTIONS.override_device == "auto":
+    device = GetBuildProp("ro.product.device", input_zip)
+  else:
+    device = OPTIONS.override_device
   script.AssertDevice(device)
 
 
@@ -308,8 +329,9 @@ def MakeRecoveryPatch(output_zip, recovery_img, boot_img):
 
   d = common.Difference(recovery_img, boot_img)
   _, _, patch = d.ComputePatch()
-  common.ZipWriteStr(output_zip, "recovery/recovery-from-boot.p", patch)
-  Item.Get("system/recovery-from-boot.p", dir=False)
+  if OPTIONS.recoveryex == False:
+    common.ZipWriteStr(output_zip, "recovery/recovery-from-boot.p", patch)
+    Item.Get("system/recovery-from-boot.p", dir=False)
 
   boot_type, boot_device = common.GetTypeAndDevice("/boot", OPTIONS.info_dict)
   recovery_type, recovery_device = common.GetTypeAndDevice("/recovery", OPTIONS.info_dict)
@@ -361,12 +383,14 @@ def WriteFullOTAPackage(input_zip, output_zip):
       metadata=metadata,
       info_dict=OPTIONS.info_dict)
 
-  if not OPTIONS.omit_prereq:
-    ts = GetBuildProp("ro.build.date.utc", input_zip)
-    script.AssertOlderBuild(ts)
+#  if not OPTIONS.omit_prereq:
+#    ts = GetBuildProp("ro.build.date.utc", input_zip)
+#    script.AssertOlderBuild(ts)
 
   AppendAssertions(script, input_zip)
   device_specific.FullOTA_Assertions()
+  if OPTIONS.backuptool:
+    script.RunBackup("backup")
 
   script.ShowProgress(0.5, 0)
 
@@ -375,7 +399,8 @@ def WriteFullOTAPackage(input_zip, output_zip):
 
   script.FormatPartition("/system")
   script.Mount("/system")
-  script.UnpackPackageDir("recovery", "/system")
+  if OPTIONS.recoveryex == False:
+    script.UnpackPackageDir("recovery", "/system")
   script.UnpackPackageDir("system", "/system")
 
   symlinks = CopySystemFiles(input_zip, output_zip)
@@ -383,16 +408,29 @@ def WriteFullOTAPackage(input_zip, output_zip):
 
   boot_img = common.File("boot.img", common.BuildBootableImage(
       os.path.join(OPTIONS.input_tmp, "BOOT")))
-  recovery_img = common.File("recovery.img", common.BuildBootableImage(
-      os.path.join(OPTIONS.input_tmp, "RECOVERY")))
-  MakeRecoveryPatch(output_zip, recovery_img, boot_img)
+  if OPTIONS.recoveryex == False:
+    recovery_img = File("recovery.img", common.BuildBootableImage(
+        os.path.join(OPTIONS.input_tmp, "RECOVERY")))
+    i = MakeRecoveryPatch(output_zip, recovery_img, boot_img)
 
   Item.GetMetadata(input_zip)
+  if OPTIONS.recoveryex == False:
+    i.uid = 0
+    i.gid = 0
+    i.mode = 0544
   Item.Get("system").SetPermissions(script)
 
   common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
   script.ShowProgress(0.2, 0)
+
+  if OPTIONS.backuptool:
+    script.ShowProgress(0.2, 10)
+    script.RunBackup("restore")
+
+  script.RunModelidCfg()
+
+  script.RunVerifyCachePartitionSize()
 
   script.ShowProgress(0.2, 10)
   script.WriteRawImage("/boot", "boot.img")
@@ -710,6 +748,12 @@ def main(argv):
       OPTIONS.extra_script = a
     elif o in ("--worker_threads"):
       OPTIONS.worker_threads = int(a)
+    elif o in ("--backup"):
+      OPTIONS.backuptool = bool(a.lower() == 'true')
+    elif o in ("--recovery"):
+      OPTIONS.recoveryex = bool(a.lower() == 'true')
+    elif o in ("--override_device"):
+      OPTIONS.override_device = a
     else:
       return False
     return True
@@ -722,7 +766,10 @@ def main(argv):
                                               "wipe_user_data",
                                               "no_prereq",
                                               "extra_script=",
-                                              "worker_threads="],
+                                              "worker_threads=",
+                                              "backup=",
+                                              "recovery=",
+                                              "override_device="],
                              extra_option_handler=option_handler)
 
   if len(args) != 2:
@@ -781,7 +828,6 @@ def main(argv):
 
 if __name__ == '__main__':
   try:
-    common.CloseInheritedPipes()
     main(sys.argv[1:])
   except common.ExternalError, e:
     print

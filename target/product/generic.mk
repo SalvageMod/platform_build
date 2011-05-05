@@ -22,13 +22,14 @@ PRODUCT_PACKAGES := \
     DeskClock \
     AlarmProvider \
     Bluetooth \
+    Busybox \
     Calculator \
     Calendar \
     Camera \
     CertInstaller \
     DrmProvider \
     Email \
-    Gallery3D \
+    Gallery \
     LatinIME \
     Launcher2 \
     Mms \
@@ -37,8 +38,10 @@ PRODUCT_PACKAGES := \
     Protips \
     QuickSearchBox \
     Settings \
+    Superuser \
     Sync \
     SystemUI \
+    Term \
     Updater \
     CalendarProvider \
     SyncProvider
