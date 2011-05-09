@@ -446,11 +446,8 @@ function print_lunch_menu()
     local uname=$(uname)
     echo
     echo "You're building on" $uname
-    if [ "$(uname)" = "Darwin" ] ; then
-    	echo "  (ohai, koush!)"
-    fi
     echo
-    if [ "z${CM_DEVICES_ONLY}" != "z" ]; then
+    if [ "z${SALV_DEVICES_ONLY}" != "z" ]; then
        echo "Breakfast menu... pick a combo:"
     else
        echo "Lunch menu... pick a combo:"
@@ -464,11 +461,30 @@ function print_lunch_menu()
         i=$(($i+1))
     done
 
-    if [ "z${CM_DEVICES_ONLY}" != "z" ]; then
+    if [ "z${SALV_DEVICES_ONLY}" != "z" ]; then
        echo "... and don't forget the bacon!"
     fi
 
     echo
+}
+function brunch()
+{
+    breakfast
+}
+
+
+function breakfast()
+{
+    SALV_DEVICES_ONLY="true"
+    unset LUNCH_MENU_CHOICES
+    add_lunch_combo full-eng
+    for f in `/bin/ls vendor/salvage/vendorsetup.sh vendor/salvage/build/vendorsetup.sh 2> /dev/null`
+        do
+            echo "including $f"
+            . $f
+        done
+    unset f
+    lunch
 }
 
 function brunch()
@@ -486,10 +502,10 @@ function brunch()
 function breakfast()
 {
     target=$1
-    CM_DEVICES_ONLY="true"
+    SALV_DEVICES_ONLY="true"
     unset LUNCH_MENU_CHOICES
     add_lunch_combo full-eng
-    for f in `/bin/ls vendor/cyanogen/vendorsetup.sh vendor/cyanogen/build/vendorsetup.sh 2> /dev/null`
+    for f in `/bin/ls vendor/salvage/vendorsetup.sh vendor/salvage/build/vendorsetup.sh 2> /dev/null`
         do
             echo "including $f"
             . $f
@@ -506,7 +522,7 @@ function breakfast()
             lunch $target
         else
             # This is probably just the CM model name
-            lunch cyanogen_$target-eng
+            lunch salvage_$target-eng
         fi
     fi
     return $?
