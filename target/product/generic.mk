@@ -29,7 +29,7 @@ PRODUCT_PACKAGES := \
     CertInstaller \
     DrmProvider \
     Email \
-    Gallery \
+    Gallery3D \
     LatinIME \
     Launcher2 \
     Mms \
