@@ -116,6 +116,22 @@ class EdifyGenerator(object):
     self.script.append('set_perm(0, 0, 0777, "/tmp/verify_cache_partition_size.sh");')
     self.script.append('run_program("/tmp/verify_cache_partition_size.sh");')
 
+  def SalvageModIntro(self):
+    self.script.append('ui_print("");')
+    self.script.append('ui_print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");')
+    self.script.append('ui_print("                  SALVAGEMOD                   ");')
+    self.script.append('ui_print("              www.salvage-mod.com              ");')
+    self.script.append('ui_print("                Evo & Incredible               ");')
+    self.script.append('ui_print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");')
+    self.script.append('ui_print("");')
+    self.script.append('ui_print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");')
+    self.script.append('ui_print("                 Developed by:                 ");')
+    self.script.append('ui_print("                   echoside                    ");')
+    self.script.append('ui_print("                  Barnacles10                  ");')
+    self.script.append('ui_print("                    Lithid                     ");')
+    self.script.append('ui_print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");')
+    self.script.append('ui_print("");')
+
   def ShowProgress(self, frac, dur):
     """Update the progress bar, advancing it over 'frac' over the next
     'dur' seconds.  'dur' may be zero to advance it via SetProgress

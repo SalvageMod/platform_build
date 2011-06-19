@@ -389,6 +389,7 @@ def WriteFullOTAPackage(input_zip, output_zip):
 
   AppendAssertions(script, input_zip)
   device_specific.FullOTA_Assertions()
+  script.SalvageModIntro()
   if OPTIONS.backuptool:
     script.RunBackup("backup")
 
