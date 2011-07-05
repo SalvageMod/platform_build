@@ -19,6 +19,7 @@
 
 PRODUCT_PACKAGES := \
     AccountAndSyncSettings \
+    AndroidTerm \
     DeskClock \
     AlarmProvider \
     Bluetooth \
@@ -41,7 +42,6 @@ PRODUCT_PACKAGES := \
     Superuser \
     Sync \
     SystemUI \
-    Term \
     Updater \
     CalendarProvider \
     SyncProvider
