@@ -44,6 +44,8 @@ PRODUCT_PACKAGES := \
     SystemUI \
     Updater \
     CalendarProvider \
+    SpareParts \
+    Development \
     SyncProvider
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core.mk)
