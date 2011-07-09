@@ -91,6 +91,8 @@ OPTIONS.omit_prereq = False
 OPTIONS.extra_script = None
 OPTIONS.worker_threads = 3
 OPTIONS.backuptool = False
+OPTIONS.runmodelidtool = False
+OPTIONS.varifycachetool = False
 OPTIONS.recoveryex = False
 OPTIONS.override_device = 'auto'
 
@@ -425,13 +427,15 @@ def WriteFullOTAPackage(input_zip, output_zip):
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
   script.ShowProgress(0.2, 0)
 
-  if OPTIONS.backuptool:
+  if OPTIONS.backuptool == True:
     script.ShowProgress(0.2, 10)
     script.RunBackup("restore")
 
-  script.RunModelidCfg()
+  if OPTIONS.runmodelidtool == True:
+  	script.RunModelidCfg()
 
-  script.RunVerifyCachePartitionSize()
+  if OPTIONS.varifycachetool == True:
+  	script.RunVerifyCachePartitionSize()
 
   script.ShowProgress(0.2, 10)
   script.WriteRawImage("/boot", "boot.img")
