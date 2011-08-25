@@ -37,7 +37,6 @@ PRODUCT_PACKAGES := \
     Music \
     Provision \
     Protips \
-    QuickSearchBox \
     Settings \
     Superuser \
     Sync \
